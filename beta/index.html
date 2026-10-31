@@ -19,7 +19,7 @@
   <!-- ============ PANTALLA 1: GUION Y AJUSTES ============ -->
   <main id="editor" class="screen">
     <header class="top">
-      <h1>Teleprompter por voz <span class="beta">BETA v6</span></h1>
+      <h1>Teleprompter por voz <span class="beta">BETA v7</span></h1>
       <p class="sub">Pega tu guion, toca <b>Empezar</b> y lee. El texto avanza con tu voz y se detiene cuando te callas. Toca <b>🎥</b> para grabarte con el texto encima.</p>
     </header>
 
@@ -83,20 +83,14 @@
       <h3 class="group">Modo grabación 🎥</h3>
 
       <label class="field">
-        <span class="label">Resolución</span>
+        <span class="label">Formato y resolución</span>
         <select id="camQuality">
-          <option value="2160">4K (máxima calidad · archivos muy pesados)</option>
-          <option value="1080">1080p Full HD (recomendada)</option>
-          <option value="720">720p HD (más liviana)</option>
+          <option value="1080">9:16 · 1080p Full HD (recomendada, Reels/TikTok)</option>
+          <option value="2160">9:16 · 4K (máxima nitidez, archivos muy pesados)</option>
+          <option value="720">9:16 · 720p (más liviana)</option>
+          <option value="3x4">3:4 · 1440×1920 (encuadre más amplio, se ve más de los lados)</option>
         </select>
-      </label>
-
-      <label class="field">
-        <span class="label">Fotogramas por segundo</span>
-        <select id="camFps">
-          <option value="30">30 fps (estándar)</option>
-          <option value="60">60 fps (movimiento más fluido, archivos más pesados)</option>
-        </select>
+        <span class="hint">Graba a 30 fps: la cámara frontal no da 60 fps desde Safari.</span>
       </label>
 
       <label class="field">
@@ -123,17 +117,6 @@
           <input id="camMarker" type="range" min="8" max="50" step="2" value="18">
         </label>
       </div>
-
-      <label class="field">
-        <span class="label">Orientación del video grabado</span>
-        <select id="camRotate">
-          <option value="0">Automática (como sostienes el teléfono)</option>
-          <option value="90">Girar 90° a la derecha</option>
-          <option value="-90">Girar 90° a la izquierda</option>
-          <option value="180">Girar 180°</option>
-        </select>
-        <span class="hint">Déjalo en Automática. Usa un giro solo si el video te sale de lado (se recorta para encajar).</span>
-      </label>
 
       <div class="row">
         <label class="field grow">

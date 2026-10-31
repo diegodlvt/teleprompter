@@ -31,6 +31,10 @@
     pos: 0
   };
   var state = Object.assign({}, defaults, load());
+  // v7: la cámara frontal da 30 fps desde Safari y el giro manual ya no hace falta
+  // (provocaba recorte/zoom si quedaba activado).
+  state.camFps = 30;
+  state.camRotate = 0;
 
   var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -44,9 +48,9 @@
     marker: $('marker'), heard: $('heard'), status: $('status'), statusText: $('statusText'),
     micBtn: $('micBtn'), backBtn: $('backBtn'), restartBtn: $('restartBtn'),
     smallerBtn: $('smallerBtn'), biggerBtn: $('biggerBtn'), toast: $('toast'),
-    camQuality: $('camQuality'), camFps: $('camFps'), camBitrate: $('camBitrate'), camAudio: $('camAudio'),
+    camQuality: $('camQuality'), camBitrate: $('camBitrate'), camAudio: $('camAudio'),
     camEstimate: $('camEstimate'), camMarker: $('camMarker'), camMarkerVal: $('camMarkerVal'),
-    shade: $('shade'), shadeVal: $('shadeVal'), camRotate: $('camRotate'),
+    shade: $('shade'), shadeVal: $('shadeVal'),
     cam: $('cam'), camBtn: $('camBtn'), recBtn: $('recBtn'), camInfo: $('camInfo'), camTime: $('camTime'),
     camLevel: $('camLevel'), savePanel: $('savePanel'), saveInfo: $('saveInfo'),
     saveBtn: $('saveBtn'), discardBtn: $('discardBtn'), recTech: $('recTech')
@@ -61,12 +65,10 @@
   els.mirror.checked = state.mirror;
   els.showHeard.checked = state.showHeard;
   els.camQuality.value = state.camQuality;
-  els.camFps.value = String(state.camFps);
   els.camBitrate.value = state.camBitrate;
   els.camAudio.value = state.camAudio;
   els.camMarker.value = state.camMarker;
   els.shade.value = state.shade;
-  els.camRotate.value = String(state.camRotate);
 
   els.engineSupport.textContent = SR
     ? 'Este navegador tiene reconocimiento de voz integrado.'
@@ -103,11 +105,9 @@
   els.mirror.addEventListener('change', function () { state.mirror = els.mirror.checked; save(); });
   els.showHeard.addEventListener('change', function () { state.showHeard = els.showHeard.checked; save(); });
   els.camQuality.addEventListener('change', function () { state.camQuality = els.camQuality.value; save(); refreshEditor(); });
-  els.camFps.addEventListener('change', function () { state.camFps = +els.camFps.value; save(); refreshEditor(); });
   els.camBitrate.addEventListener('change', function () { state.camBitrate = els.camBitrate.value; save(); refreshEditor(); });
   els.camAudio.addEventListener('change', function () { state.camAudio = els.camAudio.value; save(); });
   els.camMarker.addEventListener('input', function () { state.camMarker = +els.camMarker.value; save(); refreshEditor(); });
-  els.camRotate.addEventListener('change', function () { state.camRotate = +els.camRotate.value; save(); });
   els.shade.addEventListener('input', function () { state.shade = +els.shade.value; save(); refreshEditor(); });
   refreshEditor();
 
@@ -646,6 +646,7 @@
 
   // Medidas del video según la resolución elegida.
   function camDims() {
+    if (state.camQuality === '3x4') return { long: 1920, short: 1440 };
     if (state.camQuality === '2160') return { long: 3840, short: 2160 };
     if (state.camQuality === '720') return { long: 1280, short: 720 };
     return { long: 1920, short: 1080 };
@@ -653,7 +654,7 @@
 
   // Calidad de compresión (bits por segundo) según resolución y fotogramas.
   function videoBitrate(shortSide, fps) {
-    var base = shortSide >= 2000 ? 45e6 : shortSide >= 1000 ? 16e6 : shortSide >= 700 ? 8e6 : 4e6; // a 30 fps, "alta"
+    var base = shortSide >= 2000 ? 45e6 : shortSide >= 1400 ? 22e6 : shortSide >= 1000 ? 16e6 : shortSide >= 700 ? 8e6 : 4e6; // a 30 fps, "alta"
     if (fps > 40) base *= 1.5;
     if (state.camBitrate === 'max') base *= 2;
     else if (state.camBitrate === 'std') base *= 0.5;
@@ -899,7 +900,8 @@
     var st = vt && vt.getSettings ? vt.getSettings() : {};
     if (!st.width) return 'Lista';
     var short = Math.min(st.width, st.height);
-    var name = short >= 2000 ? '4K' : short >= 1000 ? '1080p' : short >= 700 ? '720p' : st.width + '×' + st.height;
+    var ratio = short / Math.max(st.width, st.height);
+    var name = (ratio > 0.7 && ratio < 0.8) ? '3:4' : short >= 2000 ? '4K' : short >= 1000 ? '1080p' : short >= 700 ? '720p' : st.width + '×' + st.height;
     return 'Lista · ' + name + (st.frameRate ? (/p$|K$/.test(name) ? '' : ' ') + Math.round(st.frameRate) + (/p$|K$/.test(name) ? '' : 'fps') : '');
   }
 
