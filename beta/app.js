@@ -611,10 +611,6 @@
         });
     };
     openCam().then(function (stream) {
-      var vt = stream.getVideoTracks()[0];
-      if (trackMatches(vt, portrait) || !vt.applyConstraints) return stream;
-      return vt.applyConstraints(camConstraints(true)).then(function () { return stream; }, function () { return stream; });
-    }).then(function (stream) {
       els.camBtn.disabled = false;
       cam.stream = stream;
       cam.on = true;
@@ -631,9 +627,18 @@
         at.onmute = function () { els.camInfo.classList.add('nomic'); toast('iOS silenció el micrófono de la grabación.', 5000); };
         at.onunmute = function () { els.camInfo.classList.remove('nomic'); };
       }
-      els.camTime.textContent = camLabel();
-      checkDelivered();
-      // Si el reconocimiento se cortó al abrir la cámara, el motor lo reabre solo.
+      // Revisar la orientación recién cuando la imagen ya está corriendo: justo al
+      // abrir, iOS informa el tamaño "sin girar" y engaña a cualquier verificación.
+      cam.ready = false;
+      els.recBtn.disabled = true;
+      els.camTime.textContent = 'Preparando…';
+      ensureOrientation(stream, portrait).then(function () {
+        if (cam.stream !== stream) return;
+        cam.ready = true;
+        els.recBtn.disabled = false;
+        els.camTime.textContent = camLabel();
+        checkDelivered();
+      });
     }).catch(function (err) {
       els.camBtn.disabled = false;
       if (cam.audioCtx) { try { cam.audioCtx.close(); } catch (e) {} cam.audioCtx = null; }
@@ -678,10 +683,54 @@
     };
   }
 
+  // Tamaño real de la imagen: el del <video> en pantalla (ya girado por iOS) es el
+  // más confiable; los "settings" de la pista pueden venir sin girar al principio.
   function trackSize(vt) {
-    var st = vt && vt.getSettings ? vt.getSettings() : {};
-    var w = st.width || els.cam.videoWidth, h = st.height || els.cam.videoHeight;
+    var w = els.cam.videoWidth, h = els.cam.videoHeight;
+    if (!w || !h) {
+      var st = vt && vt.getSettings ? vt.getSettings() : {};
+      w = st.width; h = st.height;
+    }
     return { w: w || 0, h: h || 0 };
+  }
+
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  // Espera a que el <video> tenga imagen y su tamaño se mantenga estable.
+  function waitStableSize(maxMs) {
+    var t0 = Date.now(), last = '', stableSince = 0;
+    return new Promise(function (resolve) {
+      (function poll() {
+        var cur = els.cam.videoWidth + 'x' + els.cam.videoHeight;
+        if (els.cam.videoWidth) {
+          if (cur !== last) { last = cur; stableSince = Date.now(); }
+          else if (Date.now() - stableSince >= 600) return resolve();
+        }
+        if (Date.now() - t0 > maxMs) return resolve();
+        setTimeout(poll, 100);
+      })();
+    });
+  }
+
+  function ensureOrientation(stream, portrait) {
+    var vt = stream.getVideoTracks()[0];
+    return waitStableSize(4000).then(function () {
+      cam.orientDebug = 'inicio ' + els.cam.videoWidth + '×' + els.cam.videoHeight;
+      if (trackMatches(vt, portrait) || !vt || !vt.applyConstraints) return;
+      // Solo si de verdad viene al revés: pedir las medidas invertidas…
+      return vt.applyConstraints(camConstraints(true)).catch(function () {})
+        .then(function () { return sleep(300); })
+        .then(function () { return waitStableSize(3000); })
+        .then(function () {
+          cam.orientDebug += ' → invertido ' + els.cam.videoWidth + '×' + els.cam.videoHeight;
+          if (trackMatches(vt, portrait)) return;
+          // …y si no sirvió, volver a lo original (no empeorar).
+          return vt.applyConstraints(camConstraints(false)).catch(function () {})
+            .then(function () { return sleep(300); })
+            .then(function () { return waitStableSize(3000); })
+            .then(function () { cam.orientDebug += ' → original ' + els.cam.videoWidth + '×' + els.cam.videoHeight; });
+        });
+    });
   }
 
   // ¿La imagen de la cámara ya viene en la orientación en que sostienes el teléfono?
@@ -700,6 +749,8 @@
     cam.blob = null; cam.chunks = [];
     els.cam.srcObject = null;
     cam.on = false;
+    cam.ready = false;
+    els.recBtn.disabled = false;
     els.prompter.classList.remove('cam');
     els.recBtn.classList.add('hidden');
     els.camInfo.classList.add('hidden');
@@ -804,6 +855,7 @@
 
   function startRecording() {
     if (!cam.stream) return;
+    if (!cam.ready) { toast('Un momento, preparando la cámara…', 2000); return; }
     if (cam.blob && !window.confirm('Tienes un video sin guardar. ¿Descartarlo y grabar otro?')) return;
     cam.blob = null; cam.chunks = []; cam.saved = false;
     els.savePanel.classList.add('hidden');
@@ -860,7 +912,8 @@
       // Datos técnicos (para diagnosticar): cámara, método y tamaño real del video.
       var vt = cam.stream && cam.stream.getVideoTracks()[0];
       var st = vt && vt.getSettings ? vt.getSettings() : {};
-      var tech = 'Cámara ' + st.width + '×' + st.height + ' · ' + cam.path + ' · pantalla ' + innerWidth + '×' + innerHeight;
+      var tech = 'Cámara ' + els.cam.videoWidth + '×' + els.cam.videoHeight + ' (pista ' + st.width + '×' + st.height + ') · ' + cam.path +
+        ' · ' + (cam.orientDebug || '');
       els.recTech.textContent = tech;
       var probe = document.createElement('video'); probe.muted = true; probe.src = URL.createObjectURL(cam.blob);
       probe.onloadedmetadata = function () {
