@@ -24,6 +24,7 @@
     camQuality: '1080',
     camMarker: 18,
     shade: 55,
+    camRotate: 0,
     pos: 0
   };
   var state = Object.assign({}, defaults, load());
@@ -41,7 +42,7 @@
     micBtn: $('micBtn'), backBtn: $('backBtn'), restartBtn: $('restartBtn'),
     smallerBtn: $('smallerBtn'), biggerBtn: $('biggerBtn'), toast: $('toast'),
     camQuality: $('camQuality'), camMarker: $('camMarker'), camMarkerVal: $('camMarkerVal'),
-    shade: $('shade'), shadeVal: $('shadeVal'),
+    shade: $('shade'), shadeVal: $('shadeVal'), camRotate: $('camRotate'),
     cam: $('cam'), camBtn: $('camBtn'), recBtn: $('recBtn'), camInfo: $('camInfo'), camTime: $('camTime'),
     camLevel: $('camLevel'), savePanel: $('savePanel'), saveInfo: $('saveInfo'),
     saveBtn: $('saveBtn'), discardBtn: $('discardBtn')
@@ -58,6 +59,7 @@
   els.camQuality.value = state.camQuality;
   els.camMarker.value = state.camMarker;
   els.shade.value = state.shade;
+  els.camRotate.value = String(state.camRotate);
 
   els.engineSupport.textContent = SR
     ? 'Este navegador tiene reconocimiento de voz integrado.'
@@ -87,6 +89,7 @@
   els.showHeard.addEventListener('change', function () { state.showHeard = els.showHeard.checked; save(); });
   els.camQuality.addEventListener('change', function () { state.camQuality = els.camQuality.value; save(); });
   els.camMarker.addEventListener('input', function () { state.camMarker = +els.camMarker.value; save(); refreshEditor(); });
+  els.camRotate.addEventListener('change', function () { state.camRotate = +els.camRotate.value; save(); });
   els.shade.addEventListener('input', function () { state.shade = +els.shade.value; save(); refreshEditor(); });
   refreshEditor();
 
@@ -670,6 +673,58 @@
     return Math.floor(s / 60) + ':' + ('0' + (s % 60)).slice(-2);
   }
 
+  // Safari en iPhone graba los cuadros de la cámara en la orientación del sensor
+  // (horizontal). Para controlar la orientación dibujamos cada cuadro en un lienzo
+  // del tamaño deseado (vertical u horizontal según cómo tengas el teléfono) y
+  // grabamos ese lienzo junto con el audio del micrófono.
+  var rc = { canvas: null, g: null, raf: 0, vfc: 0, track: null };
+
+  function buildRecordStream() {
+    var portrait = window.innerHeight >= window.innerWidth;
+    var short = state.camQuality === '720' ? 720 : 1080;
+    var long = state.camQuality === '720' ? 1280 : 1920;
+    var W = portrait ? short : long, H = portrait ? long : short;
+    if (!rc.canvas) rc.canvas = document.createElement('canvas');
+    var c = rc.canvas;
+    if (!c.captureStream) return null;
+    c.width = W; c.height = H;
+    rc.g = c.getContext('2d', { alpha: false });
+    var video = els.cam;
+    var rot = (state.camRotate || 0) * Math.PI / 180;
+
+    function draw() {
+      var vw = video.videoWidth, vh = video.videoHeight;
+      if (!vw || !vh) return;
+      var turned = state.camRotate === 90 || state.camRotate === -90;
+      var srcW = turned ? vh : vw, srcH = turned ? vw : vh;
+      var scale = Math.max(W / srcW, H / srcH); // recorte tipo "cover", sin bordes negros
+      var g = rc.g;
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.translate(W / 2, H / 2);
+      if (rot) g.rotate(rot);
+      g.scale(scale, scale);
+      g.drawImage(video, -vw / 2, -vh / 2, vw, vh);
+    }
+    function loopRaf() { rc.raf = requestAnimationFrame(loopRaf); draw(); }
+    function loopVfc() { draw(); rc.vfc = video.requestVideoFrameCallback(loopVfc); }
+    stopDrawing();
+    draw();
+    if (video.requestVideoFrameCallback) rc.vfc = video.requestVideoFrameCallback(loopVfc);
+    else loopRaf();
+
+    var canvasStream = c.captureStream(30);
+    rc.track = canvasStream.getVideoTracks()[0];
+    var tracks = [rc.track].concat(cam.stream.getAudioTracks());
+    return new MediaStream(tracks);
+  }
+
+  function stopDrawing() {
+    cancelAnimationFrame(rc.raf); rc.raf = 0;
+    if (rc.vfc && els.cam.cancelVideoFrameCallback) { try { els.cam.cancelVideoFrameCallback(rc.vfc); } catch (e) {} }
+    rc.vfc = 0;
+    if (rc.track) { try { rc.track.stop(); } catch (e) {} rc.track = null; } // solo el lienzo, NO el micrófono
+  }
+
   function startRecording() {
     if (!cam.stream) return;
     if (cam.blob && !window.confirm('Tienes un video sin guardar. ¿Descartarlo y grabar otro?')) return;
@@ -678,13 +733,17 @@
     var mime = pickMime();
     var opts = { videoBitsPerSecond: state.camQuality === '720' ? 5000000 : 10000000, audioBitsPerSecond: 128000 };
     if (mime) opts.mimeType = mime;
+    var recStream = null;
+    try { recStream = buildRecordStream(); } catch (e) { recStream = null; }
+    if (!recStream) { stopDrawing(); recStream = cam.stream; } // respaldo: grabar la cámara directo
     var rec;
-    try { rec = new MediaRecorder(cam.stream, opts); }
+    try { rec = new MediaRecorder(recStream, opts); }
     catch (e) {
-      try { rec = new MediaRecorder(cam.stream); } catch (e2) { toast('Este navegador no puede grabar video.', 5000); return; }
+      try { rec = new MediaRecorder(recStream); } catch (e2) { stopDrawing(); toast('Este navegador no puede grabar video.', 5000); return; }
     }
     rec.ondataavailable = function (e) { if (e.data && e.data.size) cam.chunks.push(e.data); };
     rec.onstop = function () {
+      stopDrawing();
       var type = (rec.mimeType || mime || 'video/mp4').split(';')[0];
       cam.mime = type;
       cam.blob = new Blob(cam.chunks, { type: type });
@@ -714,6 +773,7 @@
       cam.recorder._discard = !!discard;
       try { cam.recorder.stop(); } catch (e) {}
     }
+    else stopDrawing();
     cam.recorder = null;
     if (cam.stream && !discard) {
       els.camTime.textContent = camLabel();
@@ -779,6 +839,7 @@
     feed: onSpeech,
     get pos() { return tracker ? tracker.pos : 0; },
     get words() { return wordEls.length; },
-    get cam() { return cam; }
+    get cam() { return cam; },
+    get rc() { return rc; }
   };
 })();
