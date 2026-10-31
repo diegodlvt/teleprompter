@@ -49,7 +49,7 @@
     shade: $('shade'), shadeVal: $('shadeVal'), camRotate: $('camRotate'),
     cam: $('cam'), camBtn: $('camBtn'), recBtn: $('recBtn'), camInfo: $('camInfo'), camTime: $('camTime'),
     camLevel: $('camLevel'), savePanel: $('savePanel'), saveInfo: $('saveInfo'),
-    saveBtn: $('saveBtn'), discardBtn: $('discardBtn')
+    saveBtn: $('saveBtn'), discardBtn: $('discardBtn'), recTech: $('recTech')
   };
 
   els.script.value = state.script;
@@ -822,7 +822,9 @@
     var recStream = null;
     if (!state.camRotate && trackMatches(vt, portrait)) {
       recStream = cam.stream; // la cámara ya viene derecha: se graba directo, sin recortes
+      cam.path = 'directo';
     } else {
+      cam.path = 'lienzo (recorte)';
       // Solo si la orientación no coincide (o pediste girar): pasar por el lienzo.
       try { recStream = buildRecordStream(); } catch (e) { recStream = null; }
       if (!recStream) { stopDrawing(); recStream = cam.stream; }
@@ -854,6 +856,16 @@
       var dur = Date.now() - cam.startTs;
       els.saveInfo.textContent = fmtTime(dur) + ' min · ' + (cam.blob.size / 1048576).toFixed(1) + ' MB';
       els.savePanel.classList.remove('hidden');
+      // Datos técnicos (para diagnosticar): cámara, método y tamaño real del video.
+      var vt = cam.stream && cam.stream.getVideoTracks()[0];
+      var st = vt && vt.getSettings ? vt.getSettings() : {};
+      var tech = 'Cámara ' + st.width + '×' + st.height + ' · ' + cam.path + ' · pantalla ' + innerWidth + '×' + innerHeight;
+      els.recTech.textContent = tech;
+      var probe = document.createElement('video'); probe.muted = true; probe.src = URL.createObjectURL(cam.blob);
+      probe.onloadedmetadata = function () {
+        els.recTech.textContent = tech + ' · video ' + probe.videoWidth + '×' + probe.videoHeight;
+        URL.revokeObjectURL(probe.src);
+      };
     };
     rec.onerror = function () { toast('Error al grabar el video.', 5000); };
     rec.start(1000);

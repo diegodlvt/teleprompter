@@ -12,100 +12,90 @@
     p { color: #9a9aa3; margin: 0 0 14px; }
     button { width: 100%; padding: 16px; font: inherit; font-size: 18px; font-weight: 700; border: 0; border-radius: 14px; background: #22c55e; color: #04140a; }
     button:disabled { opacity: .4; }
-    #out { margin-top: 16px; font: 13px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; background: #17171b; border: 1px solid #2a2a31; border-radius: 12px; padding: 12px; }
-    .shots { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
-    .shots figure { margin: 0; text-align: center; font-size: 12px; color: #9a9aa3; }
-    .shots canvas, .shots video { display: block; max-height: 160px; max-width: 160px; border: 1px solid #444; background: #000; }
+    #out { margin-top: 16px; font: 12px/1.5 ui-monospace, Menlo, monospace; white-space: pre-wrap; word-break: break-word; background: #17171b; border: 1px solid #2a2a31; border-radius: 12px; padding: 12px; }
+    .row { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; padding: 10px; background: #17171b; border: 1px solid #2a2a31; border-radius: 12px; }
+    .row b { display: block; font-size: 14px; margin-bottom: 4px; }
+    .row .txt { font: 12px/1.45 ui-monospace, Menlo, monospace; color: #c9c9d1; flex: 1; min-width: 0; }
+    figure { margin: 0; text-align: center; font-size: 11px; color: #9a9aa3; }
+    figure canvas, figure video { display: block; height: 130px; width: auto; max-width: 110px; object-fit: contain; border: 1px solid #444; background: #000; }
     video#v { position: fixed; width: 2px; height: 2px; opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body>
 <main>
-  <h1>Diagnóstico de cámara</h1>
-  <p>Sostén el iPhone <b>vertical</b>, toca el botón y espera unos 20 segundos. Luego haz una captura de pantalla de todo (puede ser en dos partes) y mándasela a Claude.</p>
-  <button id="go">Probar cámara</button>
+  <h1>Diagnóstico de cámara · v2</h1>
+  <p>Sostén el iPhone <b>vertical</b> y quieto, toca el botón y espera ~30 segundos hasta que diga <b>Listo</b>. Luego haz capturas de pantalla de todo y mándaselas a Claude.</p>
+  <button id="go">Probar cámara y grabación</button>
   <div id="out"></div>
-  <div class="shots" id="shots"></div>
+  <div id="rows"></div>
 </main>
 <video id="v" playsinline muted autoplay></video>
 <script>
 (function () {
-  var out = document.getElementById('out'), shots = document.getElementById('shots'), v = document.getElementById('v');
+  var out = document.getElementById('out'), rows = document.getElementById('rows'), v = document.getElementById('v');
   function log(s) { out.textContent += s + '\n'; }
   function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-  function fmtSettings(st) {
-    return (st.width || '?') + '×' + (st.height || '?') + (st.aspectRatio ? ' ar=' + (+st.aspectRatio).toFixed(3) : '') + (st.frameRate ? ' ' + Math.round(st.frameRate) + 'fps' : '');
-  }
-  function snapshot(label, w, h) {
-    // Dibuja el cuadro en su tamaño natural para ver si sale derecho o de lado.
-    var c = document.createElement('canvas');
-    var scale = 160 / Math.max(w, h);
-    c.width = Math.round(w * scale); c.height = Math.round(h * scale);
-    try { c.getContext('2d').drawImage(v, 0, 0, c.width, c.height); } catch (e) {}
-    var f = document.createElement('figure'); f.appendChild(c);
-    var cap = document.createElement('figcaption'); cap.textContent = label; f.appendChild(cap);
-    shots.appendChild(f);
-  }
-  async function tryOne(label, video) {
-    var stream;
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: video, audio: false });
-    } catch (e) {
-      log('[' + label + '] ERROR ' + (e && e.name)); return null;
-    }
-    v.srcObject = stream;
-    try { await v.play(); } catch (e) {}
-    for (var i = 0; i < 30 && !v.videoWidth; i++) await wait(100);
-    await wait(500);
-    var t = stream.getVideoTracks()[0];
-    var st = t.getSettings ? t.getSettings() : {};
-    log('[' + label + '] pista ' + fmtSettings(st) + ' | <video> ' + v.videoWidth + '×' + v.videoHeight);
-    snapshot(label, v.videoWidth, v.videoHeight);
-    return { stream: stream, track: t };
-  }
-  function stop(r) { if (r && r.stream) r.stream.getTracks().forEach(function (t) { t.stop(); }); v.srcObject = null; }
 
-  async function recordTest(r) {
-    if (!window.MediaRecorder) { log('MediaRecorder: no disponible'); return; }
-    var chunks = [], rec;
-    try { rec = new MediaRecorder(r.stream); } catch (e) { log('MediaRecorder ERROR ' + e.name); return; }
-    rec.ondataavailable = function (e) { if (e.data.size) chunks.push(e.data); };
-    var done = new Promise(function (res) { rec.onstop = res; });
-    rec.start(); await wait(1500); rec.stop(); await done;
-    var blob = new Blob(chunks, { type: rec.mimeType || 'video/mp4' });
-    var pv = document.createElement('video'); pv.muted = true; pv.playsInline = true; pv.src = URL.createObjectURL(blob);
-    await new Promise(function (res) { pv.onloadedmetadata = res; pv.onerror = res; setTimeout(res, 3000); });
-    log('Grabación directa: ' + pv.videoWidth + '×' + pv.videoHeight + ' (' + (rec.mimeType || '?') + ')');
-    var f = document.createElement('figure'); f.appendChild(pv);
-    var cap = document.createElement('figcaption'); cap.textContent = 'grabación directa'; f.appendChild(cap);
-    shots.appendChild(f);
-    pv.currentTime = 0.5;
+  function frameFrom(videoEl) {
+    var w = videoEl.videoWidth, h = videoEl.videoHeight, c = document.createElement('canvas');
+    if (!w || !h) { c.width = 60; c.height = 100; return c; }
+    var s = 260 / Math.max(w, h); c.width = Math.round(w * s); c.height = Math.round(h * s);
+    try { c.getContext('2d').drawImage(videoEl, 0, 0, c.width, c.height); } catch (e) {}
+    return c;
+  }
+  function fig(el, label) {
+    var f = document.createElement('figure'); f.appendChild(el);
+    var cap = document.createElement('figcaption'); cap.textContent = label; f.appendChild(cap); return f;
+  }
+
+  async function test(label, video) {
+    var row = document.createElement('div'); row.className = 'row';
+    var txt = document.createElement('div'); txt.className = 'txt';
+    txt.innerHTML = '<b>' + label + '</b>';
+    row.appendChild(txt); rows.appendChild(row);
+    function line(s) { txt.appendChild(document.createTextNode(s)); txt.appendChild(document.createElement('br')); }
+    var stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: video, audio: false }); }
+    catch (e) { line('ERROR ' + (e && e.name)); return; }
+    v.srcObject = stream; try { await v.play(); } catch (e) {}
+    for (var i = 0; i < 30 && !v.videoWidth; i++) await wait(100);
+    await wait(900); // deja enfocar
+    var t = stream.getVideoTracks()[0], st = t.getSettings ? t.getSettings() : {};
+    line('pista: ' + st.width + '×' + st.height + ' @' + Math.round(st.frameRate || 0) + 'fps');
+    row.insertBefore(fig(frameFrom(v), 'vista'), txt);
+    // Grabación directa de 2 s
+    if (window.MediaRecorder) {
+      var chunks = [], rec;
+      try { rec = new MediaRecorder(stream, { videoBitsPerSecond: 8000000 }); } catch (e) { try { rec = new MediaRecorder(stream); } catch (e2) { line('MediaRecorder ERROR'); } }
+      if (rec) {
+        rec.ondataavailable = function (e) { if (e.data.size) chunks.push(e.data); };
+        var done = new Promise(function (r) { rec.onstop = r; });
+        rec.start(); await wait(2000); rec.stop(); await done;
+        var blob = new Blob(chunks, { type: rec.mimeType || 'video/mp4' });
+        var pv = document.createElement('video'); pv.muted = true; pv.playsInline = true; pv.preload = 'auto';
+        pv.src = URL.createObjectURL(blob);
+        await new Promise(function (r) { pv.onloadeddata = r; pv.onerror = r; setTimeout(r, 4000); });
+        try { pv.currentTime = 1; await new Promise(function (r) { pv.onseeked = r; setTimeout(r, 1500); }); } catch (e) {}
+        line('grabado: ' + pv.videoWidth + '×' + pv.videoHeight + ' · ' + (blob.size / 1048576).toFixed(1) + ' MB');
+        row.insertBefore(fig(pv, 'grabado'), txt);
+      }
+    }
+    stream.getTracks().forEach(function (x) { x.stop(); }); v.srcObject = null;
+    await wait(300);
   }
 
   document.getElementById('go').addEventListener('click', async function () {
-    this.disabled = true; out.textContent = ''; shots.innerHTML = '';
-    log('Pantalla: ' + innerWidth + '×' + innerHeight + ' | orientación: ' + ((screen.orientation && screen.orientation.type) || (innerHeight > innerWidth ? 'portrait' : 'landscape')));
-    log('Navegador: ' + navigator.userAgent.replace(/^Mozilla\/5\.0 /, ''));
-    var r = await tryOne('A sin tamaño', { facingMode: 'user' });
-    if (r) {
-      var t = r.track;
-      if (t.getCapabilities) {
-        var c = t.getCapabilities();
-        log('Capacidades: ancho ' + (c.width ? c.width.min + '–' + c.width.max : '?') + ', alto ' + (c.height ? c.height.min + '–' + c.height.max : '?') +
-            ', ar ' + (c.aspectRatio ? (+c.aspectRatio.min).toFixed(2) + '–' + (+c.aspectRatio.max).toFixed(2) : '?'));
-      }
-      await recordTest(r);
-      stop(r);
-    }
-    var tests = [
-      ['B 1080×1920', { facingMode: 'user', width: { ideal: 1080 }, height: { ideal: 1920 } }],
-      ['C 1920×1080', { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } }],
-      ['D ar 9:16', { facingMode: 'user', aspectRatio: { ideal: 9 / 16 }, height: { ideal: 1920 } }],
-      ['E 720×1280', { facingMode: 'user', width: { ideal: 720 }, height: { ideal: 1280 } }],
-      ['F 1440×1920', { facingMode: 'user', width: { ideal: 1440 }, height: { ideal: 1920 } }]
-    ];
-    for (var i = 0; i < tests.length; i++) { var x = await tryOne(tests[i][0], tests[i][1]); stop(x); }
-    log('\nListo. Haz captura de pantalla de todo esto.');
+    this.disabled = true; out.textContent = ''; rows.innerHTML = '';
+    log('Pantalla ' + innerWidth + '×' + innerHeight + ' · ' + ((screen.orientation && screen.orientation.type) || ''));
+    log((navigator.userAgent.match(/OS [\d_]+/) || [''])[0] + ' · ' + (navigator.userAgent.match(/Version\/[\d.]+/) || [''])[0]);
+    var U = 'user';
+    await test('1. 9:16 1080p 30fps (pide 1920×1080)', { facingMode: U, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } });
+    await test('2. 9:16 1080p 60fps (pide 1920×1080)', { facingMode: U, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } });
+    await test('3. 9:16 4K 30fps (pide 3840×2160)', { facingMode: U, width: { ideal: 3840 }, height: { ideal: 2160 }, frameRate: { ideal: 30 } });
+    await test('4. 3:4 amplio (pide 1920×1440)', { facingMode: U, width: { ideal: 1920 }, height: { ideal: 1440 }, frameRate: { ideal: 30 } });
+    await test('5. 3:4 máximo (pide 4032×3024)', { facingMode: U, width: { ideal: 4032 }, height: { ideal: 3024 }, frameRate: { ideal: 30 } });
+    await test('6. sin tamaño', { facingMode: U });
+    log('Listo. Haz capturas de pantalla de todo.');
     this.disabled = false;
   });
 })();
