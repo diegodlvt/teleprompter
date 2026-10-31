@@ -42,3 +42,9 @@ La clave de Deepgram se guarda únicamente en tu dispositivo (localStorage); no 
 python3 -m http.server 8000
 # abre http://localhost:8000 (el micrófono requiere localhost o HTTPS)
 ```
+
+## Beta: modo grabación
+
+En `/beta/` hay una versión de prueba que agrega **grabación de video con la cámara frontal**, con el guion sobrepuesto
+y siguiendo la voz. El video se guarda en Fotos con el menú Compartir (*Guardar video*).
+La versión principal (raíz del sitio) no cambia.
