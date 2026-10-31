@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Teleprompter por voz</title>
+  <meta name="description" content="Teleprompter que avanza siguiendo tu voz y se detiene cuando dejas de leer.">
+  <meta name="theme-color" content="#000000">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Prompter">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ============ PANTALLA 1: GUION Y AJUSTES ============ -->
+  <main id="editor" class="screen">
+    <header class="top">
+      <h1>Teleprompter por voz</h1>
+      <p class="sub">Pega tu guion, toca <b>Empezar</b> y lee. El texto avanza con tu voz y se detiene cuando te callas.</p>
+    </header>
+
+    <label class="field">
+      <span class="label">Guion</span>
+      <textarea id="script" rows="10" placeholder="Pega aquí el texto que vas a leer…"></textarea>
+      <span class="hint" id="wordCount">0 palabras</span>
+    </label>
+
+    <button id="startBtn" class="primary big">Empezar</button>
+
+    <details class="settings" id="settingsBox">
+      <summary>Ajustes</summary>
+
+      <label class="field">
+        <span class="label">Idioma</span>
+        <select id="lang">
+          <option value="es-MX">Español (México / Latinoamérica)</option>
+          <option value="es-ES">Español (España)</option>
+          <option value="es-US">Español (EE. UU.)</option>
+          <option value="es-AR">Español (Argentina)</option>
+          <option value="es-CL">Español (Chile)</option>
+          <option value="es-CO">Español (Colombia)</option>
+          <option value="en-US">English (US)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="label">Reconocimiento de voz</span>
+        <select id="engine">
+          <option value="auto">Automático (navegador; si falla, Deepgram)</option>
+          <option value="browser">Solo el del navegador (gratis)</option>
+          <option value="deepgram">Solo Deepgram (nube, más estable)</option>
+        </select>
+        <span class="hint" id="engineSupport"></span>
+      </label>
+
+      <label class="field">
+        <span class="label">Clave de Deepgram (opcional)</span>
+        <input id="dgKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Solo si usas Deepgram">
+        <span class="hint">Se guarda solo en este dispositivo. Crea una gratis en <a href="https://console.deepgram.com/signup" target="_blank" rel="noopener">console.deepgram.com</a>.</span>
+      </label>
+
+      <div class="row">
+        <label class="field grow">
+          <span class="label">Tamaño de letra: <b id="fontVal">40</b> px</span>
+          <input id="fontSize" type="range" min="20" max="90" step="2" value="40">
+        </label>
+      </div>
+
+      <div class="row">
+        <label class="field grow">
+          <span class="label">Posición de la línea de lectura: <b id="markerVal">30</b>%</span>
+          <input id="markerPos" type="range" min="10" max="60" step="5" value="30">
+        </label>
+      </div>
+
+      <label class="check"><input id="mirror" type="checkbox"> Modo espejo (para vidrio de teleprompter)</label>
+      <label class="check"><input id="showHeard" type="checkbox" checked> Mostrar lo que escucha (abajo)</label>
+
+      <details class="help">
+        <summary>¿No funciona el micrófono?</summary>
+        <ul>
+          <li>En iPhone el reconocimiento del navegador funciona mejor en <b>Safari</b>. En Chrome para iPhone a veces no está disponible: ahí usa Deepgram.</li>
+          <li>Activa <b>Ajustes → General → Teclado → Activar dictado</b>.</li>
+          <li>Si lo abriste desde el ícono de la pantalla de inicio y no escucha, ábrelo directo en Safari o usa Deepgram.</li>
+          <li>Revisa el permiso del micrófono: <b>Ajustes → Safari → Micrófono</b>.</li>
+          <li>Mientras la app Cámara está grabando, iOS le quita el micrófono a esta página.</li>
+        </ul>
+      </details>
+    </details>
+  </main>
+
+  <!-- ============ PANTALLA 2: PROMPTER ============ -->
+  <section id="prompter" class="screen hidden" aria-label="Teleprompter">
+    <div id="scroller">
+      <div id="text"></div>
+    </div>
+    <div id="marker" aria-hidden="true"></div>
+
+    <div id="heard" aria-live="off"></div>
+
+    <div id="status"><span class="dot"></span><span id="statusText">Pausado</span></div>
+
+    <nav id="controls">
+      <button id="backBtn" class="ctl" aria-label="Volver al guion">✕</button>
+      <button id="restartBtn" class="ctl" aria-label="Volver al inicio">⟲</button>
+      <button id="micBtn" class="ctl mic" aria-label="Escuchar / pausar">🎙</button>
+      <button id="smallerBtn" class="ctl" aria-label="Letra más pequeña">A−</button>
+      <button id="biggerBtn" class="ctl" aria-label="Letra más grande">A+</button>
+    </nav>
+
+    <div id="toast" class="hidden"></div>
+  </section>
+
+  <script src="matcher.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
