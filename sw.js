@@ -1,6 +1,8 @@
 // Service worker: primero intenta la red (para recibir siempre la última versión)
-// y si no hay conexión usa la copia guardada.
-var CACHE = 'teleprompter-v1';
+// y si no hay conexión usa la copia guardada. 'no-cache' obliga a revisar con el
+// servidor aunque el navegador tenga una copia reciente, así las actualizaciones
+// se ven al momento.
+var CACHE = 'teleprompter-v2';
 var FILES = ['./', 'index.html', 'styles.css', 'app.js', 'matcher.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
@@ -14,7 +16,7 @@ self.addEventListener('activate', function (e) {
 });
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET' || new URL(e.request.url).origin !== location.origin) return;
-  e.respondWith(fetch(e.request).then(function (res) {
+  e.respondWith(fetch(e.request, { cache: 'no-cache' }).then(function (res) {
     var copy = res.clone();
     caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
     return res;
