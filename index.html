@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Teleprompter por voz</title>
-  <meta name="description" content="Teleprompter que avanza siguiendo tu voz y se detiene cuando dejas de leer.">
+  <meta name="description" content="Teleprompter que avanza siguiendo tu voz, se detiene cuando dejas de leer y graba video con el texto encima.">
   <meta name="theme-color" content="#000000">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
@@ -21,7 +21,7 @@
   <main id="editor" class="screen">
     <header class="top">
       <h1>Teleprompter por voz</h1>
-      <p class="sub">Pega tu guion, toca <b>Empezar</b> y lee. El texto avanza con tu voz y se detiene cuando te callas.</p>
+      <p class="sub">Pega tu guion, toca <b>Empezar</b> y lee. El texto avanza con tu voz y se detiene cuando te callas. Toca <b>🎥</b> para grabarte con el texto encima.</p>
     </header>
 
     <label class="field">
@@ -60,8 +60,8 @@
 
       <label class="field">
         <span class="label">Clave de Deepgram (opcional)</span>
-        <input id="dgKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Solo si usas Deepgram">
-        <span class="hint">Se guarda solo en este dispositivo. Crea una gratis en <a href="https://console.deepgram.com/signup" target="_blank" rel="noopener">console.deepgram.com</a>.</span>
+        <input id="dgKey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Déjalo vacío para no usarlo">
+        <span class="hint">Sin clave nunca se usa Deepgram.</span>
       </label>
 
       <div class="row">
@@ -81,21 +81,68 @@
       <label class="check"><input id="mirror" type="checkbox"> Modo espejo (para vidrio de teleprompter)</label>
       <label class="check"><input id="showHeard" type="checkbox" checked> Mostrar lo que escucha (abajo)</label>
 
+      <h3 class="group">Modo grabación 🎥</h3>
+
+      <label class="field">
+        <span class="label">Formato y resolución</span>
+        <select id="camQuality">
+          <option value="1080">9:16 · 1080p Full HD (recomendada, Reels/TikTok)</option>
+          <option value="2160">9:16 · 4K (máxima nitidez, archivos muy pesados)</option>
+          <option value="720">9:16 · 720p (más liviana)</option>
+          <option value="3x4">3:4 · 1440×1920 (encuadre más amplio, se ve más de los lados)</option>
+        </select>
+        <span class="hint">Graba a 30 fps: la cámara frontal no da 60 fps desde Safari.</span>
+      </label>
+
+      <label class="field">
+        <span class="label">Compresión del video</span>
+        <select id="camBitrate">
+          <option value="high">Alta calidad (recomendada)</option>
+          <option value="max">Máxima calidad (archivos el doble de pesados)</option>
+          <option value="std">Estándar (archivos más livianos)</option>
+        </select>
+        <span class="hint" id="camEstimate"></span>
+      </label>
+
+      <label class="field">
+        <span class="label">Audio de la grabación</span>
+        <select id="camAudio">
+          <option value="clean">Voz limpia (reduce ruido y eco)</option>
+          <option value="natural">Natural (sin filtros, más fiel; ideal con micrófono externo o lugar silencioso)</option>
+        </select>
+      </label>
+
+      <div class="row">
+        <label class="field grow">
+          <span class="label">Línea de lectura al grabar: <b id="camMarkerVal">18</b>% <span class="hint">(arriba = mirada cerca del lente)</span></span>
+          <input id="camMarker" type="range" min="8" max="50" step="2" value="18">
+        </label>
+      </div>
+
+      <div class="row">
+        <label class="field grow">
+          <span class="label">Oscurecer detrás del texto: <b id="shadeVal">55</b>%</span>
+          <input id="shade" type="range" min="0" max="90" step="5" value="55">
+        </label>
+      </div>
+
       <details class="help">
         <summary>¿No funciona el micrófono?</summary>
         <ul>
-          <li>En iPhone el reconocimiento del navegador funciona mejor en <b>Safari</b>. En Chrome para iPhone a veces no está disponible: ahí usa Deepgram.</li>
+          <li>En iPhone el reconocimiento del navegador funciona mejor en <b>Safari</b>.</li>
           <li>Activa <b>Ajustes → General → Teclado → Activar dictado</b>.</li>
-          <li>Si lo abriste desde el ícono de la pantalla de inicio y no escucha, ábrelo directo en Safari o usa Deepgram.</li>
-          <li>Revisa el permiso del micrófono: <b>Ajustes → Safari → Micrófono</b>.</li>
-          <li>Mientras la app Cámara está grabando, iOS le quita el micrófono a esta página.</li>
+          <li>Revisa los permisos: <b>Ajustes → Safari → Cámara</b> y <b>Micrófono</b>.</li>
         </ul>
       </details>
     </details>
+
   </main>
 
   <!-- ============ PANTALLA 2: PROMPTER ============ -->
   <section id="prompter" class="screen hidden" aria-label="Teleprompter">
+    <video id="cam" playsinline muted autoplay></video>
+    <div id="shadeLayer" aria-hidden="true"></div>
+
     <div id="scroller">
       <div id="text"></div>
     </div>
@@ -103,15 +150,32 @@
 
     <div id="heard" aria-live="off"></div>
 
+    <button id="camBtn" class="ctl corner" aria-label="Activar o desactivar cámara">🎥</button>
+
+    <div id="camInfo" class="hidden">
+      <span class="recdot"></span>
+      <span id="camTime">Cámara lista</span>
+      <span class="meter" title="Nivel del micrófono de la grabación"><i id="camLevel"></i></span>
+    </div>
+
     <div id="status"><span class="dot"></span><span id="statusText">Pausado</span></div>
 
     <nav id="controls">
       <button id="backBtn" class="ctl" aria-label="Volver al guion">✕</button>
       <button id="restartBtn" class="ctl" aria-label="Volver al inicio">⟲</button>
       <button id="micBtn" class="ctl mic" aria-label="Escuchar / pausar">🎙</button>
+      <button id="recBtn" class="ctl rec hidden" aria-label="Grabar / detener"><span></span></button>
       <button id="smallerBtn" class="ctl" aria-label="Letra más pequeña">A−</button>
       <button id="biggerBtn" class="ctl" aria-label="Letra más grande">A+</button>
     </nav>
+
+    <div id="savePanel" class="hidden" role="dialog" aria-label="Video grabado">
+      <h2>Video listo</h2>
+      <p id="saveInfo"></p>
+      <button id="saveBtn" class="primary">Guardar video</button>
+      <button id="discardBtn" class="ghost">Descartar</button>
+      <p class="hint">En el menú que aparece elige <b>Guardar video</b> para mandarlo a Fotos.</p>
+    </div>
 
     <div id="toast" class="hidden"></div>
   </section>

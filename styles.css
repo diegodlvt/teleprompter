@@ -186,3 +186,80 @@ button { font: inherit; cursor: pointer; }
   font-size: 14px; line-height: 1.4; text-align: center;
   pointer-events: none;
 }
+
+/* ================= Modo grabación ================= */
+.beta {
+  font-size: 12px; font-weight: 700; letter-spacing: .08em;
+  color: var(--accent-ink); background: var(--warn);
+  padding: 3px 7px; border-radius: 6px; vertical-align: middle;
+}
+.group { font-size: 15px; margin: 18px 0 10px; padding-top: 14px; border-top: 1px solid var(--line); }
+.center { text-align: center; margin-top: 18px; }
+.ghost {
+  width: 100%; background: transparent; color: var(--text);
+  border: 1px solid var(--line); border-radius: 14px; padding: 14px; font-size: 16px;
+}
+
+#cam {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1); /* vista tipo espejo, como la cámara frontal; el video grabado NO sale espejado */
+  background: #000;
+  display: none;
+}
+#shadeLayer { position: absolute; inset: 0; pointer-events: none; display: none; }
+#prompter.cam #cam, #prompter.cam #shadeLayer { display: block; }
+#prompter.cam #shadeLayer {
+  background: linear-gradient(to bottom,
+    rgba(0,0,0,var(--shade, .55)) 0%,
+    rgba(0,0,0,var(--shade, .55)) 40%,
+    rgba(0,0,0,0) 70%);
+}
+#prompter.cam #text { text-shadow: 0 2px 10px rgba(0,0,0,.95), 0 0 2px rgba(0,0,0,.9); }
+#prompter.cam .w.read { color: rgba(255,255,255,.42); }
+#prompter.cam .w.cur { text-shadow: none; }
+#prompter.cam #marker { background: rgba(34,197,94,.14); }
+#prompter.cam #controls { background: linear-gradient(to top, rgba(0,0,0,.6) 50%, rgba(0,0,0,0)); }
+
+.ctl { width: 48px; height: 48px; font-size: 17px; }
+.ctl.mic { width: 58px; height: 58px; font-size: 24px; margin-top: -5px; }
+#controls { gap: 10px; }
+.ctl.corner {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 6px); left: 12px;
+  width: 44px; height: 44px; font-size: 20px;
+}
+#prompter.cam .ctl.corner { background: var(--accent); border-color: var(--accent); }
+
+.ctl.rec { width: 58px; height: 58px; margin-top: -5px; border: 3px solid #fff; background: rgba(0,0,0,.35); }
+.ctl.rec span { width: 24px; height: 24px; border-radius: 50%; background: var(--danger); transition: all .2s ease; }
+.ctl.rec.on span { width: 20px; height: 20px; border-radius: 5px; }
+
+#camInfo {
+  position: absolute;
+  top: calc(env(safe-area-inset-top) + 12px); left: 66px;
+  display: flex; align-items: center; gap: 8px;
+  background: rgba(23, 23, 27, .85); border: 1px solid var(--line);
+  padding: 6px 10px; border-radius: 999px;
+  font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+#camInfo .recdot { width: 9px; height: 9px; border-radius: 50%; background: #666; }
+#camInfo.recording .recdot { background: var(--danger); animation: blink 1s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+#camInfo .meter { width: 34px; height: 6px; border-radius: 3px; background: #333; overflow: hidden; }
+#camInfo .meter i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .08s linear; }
+#camInfo.nomic .meter i { background: var(--danger); }
+
+#savePanel {
+  position: absolute; left: 16px; right: 16px;
+  top: 50%; transform: translateY(-50%);
+  max-width: 420px; margin: 0 auto;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 18px;
+  padding: 20px; display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.6);
+}
+#savePanel h2 { margin: 0; font-size: 20px; }
+#savePanel p { margin: 0; color: var(--muted); }
+#savePanel .primary { padding: 14px; font-size: 17px; }
+.ctl:disabled { opacity: .4; }

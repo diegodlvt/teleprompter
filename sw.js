@@ -2,7 +2,7 @@
 // y si no hay conexión usa la copia guardada. 'no-cache' obliga a revisar con el
 // servidor aunque el navegador tenga una copia reciente, así las actualizaciones
 // se ven al momento.
-var CACHE = 'teleprompter-v2';
+var CACHE = 'teleprompter-v3';
 var FILES = ['./', 'index.html', 'styles.css', 'app.js', 'matcher.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 

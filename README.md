@@ -11,6 +11,20 @@ Funciona en iPhone (Safari o Chrome), Android y computadora, sin instalar nada d
 4. Si te callas, el texto se queda quieto. Si te saltas una frase, retoma donde sigas leyendo.
 5. Toca cualquier palabra para continuar desde ahí. ⟲ vuelve al inicio, A−/A+ cambia el tamaño.
 
+## Grabar video con el texto encima
+
+1. En el teleprompter toca **🎥** (arriba a la izquierda): ves la cámara frontal con el guion encima.
+2. Espera a que diga **Lista** y toca el botón rojo **⏺** para grabar; el texto sigue tu voz igual.
+3. Al terminar toca **Guardar video** y en el menú elige **Guardar video** para mandarlo a Fotos.
+
+En **Ajustes → Modo grabación** eliges formato y resolución (9:16 en 1080p, 4K o 720p, o 3:4 para un
+encuadre más amplio), compresión, tipo de audio, altura de la línea de lectura y cuánto se oscurece el fondo.
+
+Notas técnicas (iPhone): Safari interpreta ancho/alto de la cámara en la orientación del sensor, y justo al
+abrirla informa el tamaño sin girar. Por eso la app pide 1920×1080, espera a que la imagen esté estable y solo
+entonces verifica la orientación; si coincide, graba la cámara directo (sin recortes). La cámara frontal da
+30 fps desde Safari. La grabación se corta sola cerca de 1,4 GB para no perderla por falta de memoria.
+
 Para tenerlo como app: en Safari, **Compartir → Agregar a inicio**.
 
 ## Reconocimiento de voz
@@ -27,7 +41,7 @@ La clave de Deepgram se guarda únicamente en tu dispositivo (localStorage); no 
 
 - Activa **Ajustes → General → Teclado → Activar dictado** (lo necesita el motor del navegador).
 - Si desde el ícono de inicio no escucha, ábrelo directo en Safari o usa Deepgram.
-- Mientras la app **Cámara** graba, iOS le quita el micrófono a esta página: usa otro dispositivo para grabar.
+- Mientras la app **Cámara** graba, iOS le quita el micrófono a esta página: para grabarte usa el modo grabación 🎥 de esta app.
 
 ## Cómo funciona por dentro
 
@@ -42,9 +56,3 @@ La clave de Deepgram se guarda únicamente en tu dispositivo (localStorage); no 
 python3 -m http.server 8000
 # abre http://localhost:8000 (el micrófono requiere localhost o HTTPS)
 ```
-
-## Beta: modo grabación
-
-En `/beta/` hay una versión de prueba que agrega **grabación de video con la cámara frontal**, con el guion sobrepuesto
-y siguiendo la voz. El video se guarda en Fotos con el menú Compartir (*Guardar video*).
-La versión principal (raíz del sitio) no cambia.
