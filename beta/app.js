@@ -575,17 +575,19 @@
     try { cam.audioCtx = new AC(); if (cam.audioCtx.resume) cam.audioCtx.resume(); } catch (e) { cam.audioCtx = null; }
 
     var portrait = window.innerHeight >= window.innerWidth;
-    var q = state.camQuality === '720' ? [720, 1280] : [1080, 1920];
-    var video = {
-      facingMode: 'user',
-      width: { ideal: portrait ? q[0] : q[1] },
-      height: { ideal: portrait ? q[1] : q[0] },
-      frameRate: { ideal: 30 }
-    };
+    // Safari en iPhone interpreta ancho/alto en la orientación del sensor (horizontal):
+    // pedir 1920×1080 con el teléfono vertical entrega 1080×1920 vertical con el
+    // encuadre completo. Otros navegadores lo interpretan al revés, así que pedimos
+    // primero "a la manera del iPhone", revisamos qué llegó y, si no coincide con
+    // la orientación del teléfono, pedimos lo contrario.
     els.camBtn.disabled = true;
     navigator.mediaDevices.getUserMedia({
-      video: video,
+      video: camConstraints(false),
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    }).then(function (stream) {
+      var vt = stream.getVideoTracks()[0];
+      if (trackMatches(vt, portrait) || !vt.applyConstraints) return stream;
+      return vt.applyConstraints(camConstraints(true)).then(function () { return stream; }, function () { return stream; });
     }).then(function (stream) {
       els.camBtn.disabled = false;
       cam.stream = stream;
@@ -613,6 +615,30 @@
       else if (name === 'NotReadableError') toast('La cámara está ocupada por otra app.', 5000);
       else toast('No se pudo abrir la cámara (' + (name || 'error') + ').', 5000);
     });
+  }
+
+  function camConstraints(swapped) {
+    var long = state.camQuality === '720' ? 1280 : 1920;
+    var short = state.camQuality === '720' ? 720 : 1080;
+    return {
+      facingMode: 'user',
+      width: { ideal: swapped ? short : long },
+      height: { ideal: swapped ? long : short },
+      frameRate: { ideal: 30 }
+    };
+  }
+
+  function trackSize(vt) {
+    var st = vt && vt.getSettings ? vt.getSettings() : {};
+    var w = st.width || els.cam.videoWidth, h = st.height || els.cam.videoHeight;
+    return { w: w || 0, h: h || 0 };
+  }
+
+  // ¿La imagen de la cámara ya viene en la orientación en que sostienes el teléfono?
+  function trackMatches(vt, portrait) {
+    var z = trackSize(vt);
+    if (!z.w || !z.h) return true; // sin datos: no tocar
+    return portrait ? z.h >= z.w : z.w >= z.h;
   }
 
   function camOff() {
@@ -733,9 +759,16 @@
     var mime = pickMime();
     var opts = { videoBitsPerSecond: state.camQuality === '720' ? 5000000 : 10000000, audioBitsPerSecond: 128000 };
     if (mime) opts.mimeType = mime;
+    var portrait = window.innerHeight >= window.innerWidth;
+    var vt = cam.stream.getVideoTracks()[0];
     var recStream = null;
-    try { recStream = buildRecordStream(); } catch (e) { recStream = null; }
-    if (!recStream) { stopDrawing(); recStream = cam.stream; } // respaldo: grabar la cámara directo
+    if (!state.camRotate && trackMatches(vt, portrait)) {
+      recStream = cam.stream; // la cámara ya viene derecha: se graba directo, sin recortes
+    } else {
+      // Solo si la orientación no coincide (o pediste girar): pasar por el lienzo.
+      try { recStream = buildRecordStream(); } catch (e) { recStream = null; }
+      if (!recStream) { stopDrawing(); recStream = cam.stream; }
+    }
     var rec;
     try { rec = new MediaRecorder(recStream, opts); }
     catch (e) {
@@ -783,7 +816,7 @@
   function camLabel() {
     var vt = cam.stream && cam.stream.getVideoTracks()[0];
     var st = vt && vt.getSettings ? vt.getSettings() : {};
-    return st.width ? 'Lista · ' + Math.min(st.width, st.height) + 'p' : 'Lista';
+    return st.width ? 'Lista · ' + st.width + '×' + st.height : 'Lista';
   }
 
   function fileName() {
