@@ -22,6 +22,9 @@
     mirror: false,
     showHeard: true,
     camQuality: '1080',
+    camFps: 30,
+    camBitrate: 'high',
+    camAudio: 'clean',
     camMarker: 18,
     shade: 55,
     camRotate: 0,
@@ -41,7 +44,8 @@
     marker: $('marker'), heard: $('heard'), status: $('status'), statusText: $('statusText'),
     micBtn: $('micBtn'), backBtn: $('backBtn'), restartBtn: $('restartBtn'),
     smallerBtn: $('smallerBtn'), biggerBtn: $('biggerBtn'), toast: $('toast'),
-    camQuality: $('camQuality'), camMarker: $('camMarker'), camMarkerVal: $('camMarkerVal'),
+    camQuality: $('camQuality'), camFps: $('camFps'), camBitrate: $('camBitrate'), camAudio: $('camAudio'),
+    camEstimate: $('camEstimate'), camMarker: $('camMarker'), camMarkerVal: $('camMarkerVal'),
     shade: $('shade'), shadeVal: $('shadeVal'), camRotate: $('camRotate'),
     cam: $('cam'), camBtn: $('camBtn'), recBtn: $('recBtn'), camInfo: $('camInfo'), camTime: $('camTime'),
     camLevel: $('camLevel'), savePanel: $('savePanel'), saveInfo: $('saveInfo'),
@@ -57,6 +61,9 @@
   els.mirror.checked = state.mirror;
   els.showHeard.checked = state.showHeard;
   els.camQuality.value = state.camQuality;
+  els.camFps.value = String(state.camFps);
+  els.camBitrate.value = state.camBitrate;
+  els.camAudio.value = state.camAudio;
   els.camMarker.value = state.camMarker;
   els.shade.value = state.shade;
   els.camRotate.value = String(state.camRotate);
@@ -73,6 +80,14 @@
     els.fontVal.textContent = state.fontSize;
     els.markerVal.textContent = state.markerPos;
     els.camMarkerVal.textContent = state.camMarker;
+    if (els.camEstimate) {
+      var d = camDims();
+      var mbps = videoBitrate(d.short, state.camFps) / 1e6;
+      var mbMin = Math.round((mbps + 0.2) * 60 / 8);
+      els.camEstimate.textContent = '≈ ' + Math.round(mbps) + ' Mbps · unos ' +
+        (mbMin >= 1000 ? (mbMin / 1000).toFixed(1) + ' GB' : mbMin + ' MB') + ' por minuto de video' +
+        ' · máximo ~' + Math.max(1, Math.floor(1400 / Math.max(1, mbMin))) + ' min por toma';
+    }
     els.shadeVal.textContent = state.shade;
   }
 
@@ -87,7 +102,10 @@
   els.markerPos.addEventListener('input', function () { state.markerPos = +els.markerPos.value; save(); refreshEditor(); });
   els.mirror.addEventListener('change', function () { state.mirror = els.mirror.checked; save(); });
   els.showHeard.addEventListener('change', function () { state.showHeard = els.showHeard.checked; save(); });
-  els.camQuality.addEventListener('change', function () { state.camQuality = els.camQuality.value; save(); });
+  els.camQuality.addEventListener('change', function () { state.camQuality = els.camQuality.value; save(); refreshEditor(); });
+  els.camFps.addEventListener('change', function () { state.camFps = +els.camFps.value; save(); refreshEditor(); });
+  els.camBitrate.addEventListener('change', function () { state.camBitrate = els.camBitrate.value; save(); refreshEditor(); });
+  els.camAudio.addEventListener('change', function () { state.camAudio = els.camAudio.value; save(); });
   els.camMarker.addEventListener('input', function () { state.camMarker = +els.camMarker.value; save(); refreshEditor(); });
   els.camRotate.addEventListener('change', function () { state.camRotate = +els.camRotate.value; save(); });
   els.shade.addEventListener('input', function () { state.shade = +els.shade.value; save(); refreshEditor(); });
@@ -581,10 +599,18 @@
     // primero "a la manera del iPhone", revisamos qué llegó y, si no coincide con
     // la orientación del teléfono, pedimos lo contrario.
     els.camBtn.disabled = true;
-    navigator.mediaDevices.getUserMedia({
-      video: camConstraints(false),
-      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-    }).then(function (stream) {
+    var openCam = function () {
+      return navigator.mediaDevices.getUserMedia({ video: camConstraints(false), audio: camAudioConstraints() })
+        .catch(function (err) {
+          // Si la cámara no acepta la resolución/fps pedida, reintenta con 1080p 30.
+          if (!err || (err.name !== 'OverconstrainedError' && err.name !== 'ConstraintNotSatisfiedError')) throw err;
+          return navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user', width: { ideal: 1920 }, height: { ideal: 1080 } },
+            audio: camAudioConstraints()
+          });
+        });
+    };
+    openCam().then(function (stream) {
       var vt = stream.getVideoTracks()[0];
       if (trackMatches(vt, portrait) || !vt.applyConstraints) return stream;
       return vt.applyConstraints(camConstraints(true)).then(function () { return stream; }, function () { return stream; });
@@ -606,6 +632,7 @@
         at.onunmute = function () { els.camInfo.classList.remove('nomic'); };
       }
       els.camTime.textContent = camLabel();
+      checkDelivered();
       // Si el reconocimiento se cortó al abrir la cámara, el motor lo reabre solo.
     }).catch(function (err) {
       els.camBtn.disabled = false;
@@ -617,14 +644,36 @@
     });
   }
 
+  // Medidas del video según la resolución elegida.
+  function camDims() {
+    if (state.camQuality === '2160') return { long: 3840, short: 2160 };
+    if (state.camQuality === '720') return { long: 1280, short: 720 };
+    return { long: 1920, short: 1080 };
+  }
+
+  // Calidad de compresión (bits por segundo) según resolución y fotogramas.
+  function videoBitrate(shortSide, fps) {
+    var base = shortSide >= 2000 ? 45e6 : shortSide >= 1000 ? 16e6 : shortSide >= 700 ? 8e6 : 4e6; // a 30 fps, "alta"
+    if (fps > 40) base *= 1.5;
+    if (state.camBitrate === 'max') base *= 2;
+    else if (state.camBitrate === 'std') base *= 0.5;
+    return Math.round(base);
+  }
+
+  function camAudioConstraints() {
+    if (state.camAudio === 'natural') {
+      return { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: { ideal: 2 } };
+    }
+    return { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+  }
+
   function camConstraints(swapped) {
-    var long = state.camQuality === '720' ? 1280 : 1920;
-    var short = state.camQuality === '720' ? 720 : 1080;
+    var d = camDims();
     return {
       facingMode: 'user',
-      width: { ideal: swapped ? short : long },
-      height: { ideal: swapped ? long : short },
-      frameRate: { ideal: 30 }
+      width: { ideal: swapped ? d.short : d.long },
+      height: { ideal: swapped ? d.long : d.short },
+      frameRate: { ideal: state.camFps || 30 }
     };
   }
 
@@ -680,6 +729,8 @@
     })();
   }
 
+  var MAX_REC_BYTES = 1400 * 1048576; // ~1,4 GB
+
   function pickMime() {
     var options = [
       'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
@@ -707,8 +758,7 @@
 
   function buildRecordStream() {
     var portrait = window.innerHeight >= window.innerWidth;
-    var short = state.camQuality === '720' ? 720 : 1080;
-    var long = state.camQuality === '720' ? 1280 : 1920;
+    var dd = camDims(), short = dd.short, long = dd.long;
     var W = portrait ? short : long, H = portrait ? long : short;
     if (!rc.canvas) rc.canvas = document.createElement('canvas');
     var c = rc.canvas;
@@ -738,7 +788,7 @@
     if (video.requestVideoFrameCallback) rc.vfc = video.requestVideoFrameCallback(loopVfc);
     else loopRaf();
 
-    var canvasStream = c.captureStream(30);
+    var canvasStream = c.captureStream(state.camFps || 30);
     rc.track = canvasStream.getVideoTracks()[0];
     var tracks = [rc.track].concat(cam.stream.getAudioTracks());
     return new MediaStream(tracks);
@@ -757,7 +807,15 @@
     cam.blob = null; cam.chunks = []; cam.saved = false;
     els.savePanel.classList.add('hidden');
     var mime = pickMime();
-    var opts = { videoBitsPerSecond: state.camQuality === '720' ? 5000000 : 10000000, audioBitsPerSecond: 128000 };
+    // La compresión se calcula con lo que la cámara entregó de verdad (no con lo pedido).
+    var real = cam.stream.getVideoTracks()[0];
+    var rs = real && real.getSettings ? real.getSettings() : {};
+    var realShort = rs.width && rs.height ? Math.min(rs.width, rs.height) : camDims().short;
+    var realFps = rs.frameRate || state.camFps || 30;
+    var opts = {
+      videoBitsPerSecond: videoBitrate(realShort, realFps),
+      audioBitsPerSecond: state.camAudio === 'natural' ? 256000 : 192000
+    };
     if (mime) opts.mimeType = mime;
     var portrait = window.innerHeight >= window.innerWidth;
     var vt = cam.stream.getVideoTracks()[0];
@@ -774,7 +832,18 @@
     catch (e) {
       try { rec = new MediaRecorder(recStream); } catch (e2) { stopDrawing(); toast('Este navegador no puede grabar video.', 5000); return; }
     }
-    rec.ondataavailable = function (e) { if (e.data && e.data.size) cam.chunks.push(e.data); };
+    cam.bytes = 0;
+    rec.ondataavailable = function (e) {
+      if (!e.data || !e.data.size) return;
+      cam.chunks.push(e.data);
+      cam.bytes += e.data.size;
+      // Safari guarda la grabación en memoria: si crece demasiado puede cerrar la
+      // pestaña y perderse todo. Cortamos antes para no perder el video.
+      if (cam.bytes > MAX_REC_BYTES && cam.recorder === rec && rec.state === 'recording') {
+        stopRecording(false);
+        toast('Se detuvo la grabación para no perderla (archivo muy grande). Guárdala y graba la siguiente parte. Para videos largos usa 1080p.', 9000);
+      }
+    };
     rec.onstop = function () {
       stopDrawing();
       var type = (rec.mimeType || mime || 'video/mp4').split(';')[0];
@@ -816,7 +885,22 @@
   function camLabel() {
     var vt = cam.stream && cam.stream.getVideoTracks()[0];
     var st = vt && vt.getSettings ? vt.getSettings() : {};
-    return st.width ? 'Lista · ' + st.width + '×' + st.height : 'Lista';
+    if (!st.width) return 'Lista';
+    var short = Math.min(st.width, st.height);
+    var name = short >= 2000 ? '4K' : short >= 1000 ? '1080p' : short >= 700 ? '720p' : st.width + '×' + st.height;
+    return 'Lista · ' + name + (st.frameRate ? (/p$|K$/.test(name) ? '' : ' ') + Math.round(st.frameRate) + (/p$|K$/.test(name) ? '' : 'fps') : '');
+  }
+
+  // Avisa si la cámara no pudo dar lo que pediste.
+  function checkDelivered() {
+    var vt = cam.stream && cam.stream.getVideoTracks()[0];
+    var st = vt && vt.getSettings ? vt.getSettings() : {};
+    if (!st.width) return;
+    var short = Math.min(st.width, st.height), want = camDims().short;
+    var msgs = [];
+    if (short < want * 0.9) msgs.push('resolución ' + st.width + '×' + st.height);
+    if (st.frameRate && st.frameRate < (state.camFps || 30) - 5) msgs.push(Math.round(st.frameRate) + ' fps');
+    if (msgs.length) toast('Tu cámara entregó ' + msgs.join(' y ') + ' (menos de lo elegido en Ajustes).', 5000);
   }
 
   function fileName() {

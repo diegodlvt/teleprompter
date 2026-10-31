@@ -83,10 +83,37 @@
       <h3 class="group">Modo grabación 🎥</h3>
 
       <label class="field">
-        <span class="label">Calidad de video</span>
+        <span class="label">Resolución</span>
         <select id="camQuality">
-          <option value="1080">1080p (mejor calidad, archivos más pesados)</option>
-          <option value="720">720p (más liviano)</option>
+          <option value="2160">4K (máxima calidad · archivos muy pesados)</option>
+          <option value="1080">1080p Full HD (recomendada)</option>
+          <option value="720">720p HD (más liviana)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="label">Fotogramas por segundo</span>
+        <select id="camFps">
+          <option value="30">30 fps (estándar)</option>
+          <option value="60">60 fps (movimiento más fluido, archivos más pesados)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="label">Compresión del video</span>
+        <select id="camBitrate">
+          <option value="high">Alta calidad (recomendada)</option>
+          <option value="max">Máxima calidad (archivos el doble de pesados)</option>
+          <option value="std">Estándar (archivos más livianos)</option>
+        </select>
+        <span class="hint" id="camEstimate"></span>
+      </label>
+
+      <label class="field">
+        <span class="label">Audio de la grabación</span>
+        <select id="camAudio">
+          <option value="clean">Voz limpia (reduce ruido y eco)</option>
+          <option value="natural">Natural (sin filtros, más fiel; ideal con micrófono externo o lugar silencioso)</option>
         </select>
       </label>
 
