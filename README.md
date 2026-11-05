@@ -29,25 +29,20 @@ Para tenerlo como app: en Safari, **Compartir → Agregar a inicio**.
 
 ## Reconocimiento de voz
 
-| Motor | Costo | Dónde funciona |
-|---|---|---|
-| Del navegador (Web Speech API) | Gratis | Safari en iPhone/Mac, Chrome en Android/PC. En Chrome para iPhone suele no estar disponible. |
-| Deepgram (nube) | Menos de 1 centavo de dólar por minuto (dan crédito gratis al registrarte) | Cualquier navegador moderno, incluido Chrome en iPhone y modo pantalla de inicio. |
-
-En **Ajustes → Reconocimiento de voz → Automático** usa el del navegador y, si falla, cambia solo a Deepgram (si pusiste una clave).
-La clave de Deepgram se guarda únicamente en tu dispositivo (localStorage); no está en este repositorio.
+Usa el reconocimiento de voz del propio navegador (Web Speech API), que es gratis: funciona en Safari en
+iPhone/Mac y en Chrome en Android/PC. En Chrome para iPhone suele no estar disponible: ahí usa Safari.
 
 ## Problemas comunes en iPhone
 
 - Activa **Ajustes → General → Teclado → Activar dictado** (lo necesita el motor del navegador).
-- Si desde el ícono de inicio no escucha, ábrelo directo en Safari o usa Deepgram.
+- Si desde el ícono de inicio no escucha, ábrelo directo en Safari.
 - Mientras la app **Cámara** graba, iOS le quita el micrófono a esta página: para grabarte usa el modo grabación 🎥 de esta app.
 
 ## Cómo funciona por dentro
 
 - `matcher.js`: compara las últimas ~10 palabras reconocidas con una ventana del guion mediante un alineamiento local difuso
   (tolera errores de reconocimiento, palabras omitidas y muletillas). La posición solo avanza cuando hay coincidencia real.
-- `app.js`: interfaz, desplazamiento suave, motores de voz (Web Speech API y Deepgram por WebSocket) y ajustes.
+- `app.js`: interfaz, desplazamiento suave, reconocimiento de voz (Web Speech API), modo grabación y ajustes.
 - Sitio estático: sin servidor ni compilación. Se publica tal cual con GitHub Pages.
 
 ## Probar localmente
